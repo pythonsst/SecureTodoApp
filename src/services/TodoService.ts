@@ -44,13 +44,11 @@ export class TodoService implements ITodoService {
       const raw = await SecureStorage.getItem(SecureStorage.KEYS.TODOS);
 
       if (raw) {
-        // Parse serialized JSON
         const storageData = JSON.parse(raw) as {
           todos: TodoStorage[];
           nextId: number;
         };
 
-        // Convert storage format to runtime format
         this.todos = (storageData.todos || []).map((todo) => ({
           ...todo,
           createdAt: new Date(todo.createdAt),
@@ -66,6 +64,7 @@ export class TodoService implements ITodoService {
       this.initialized = true;
     } catch (error) {
       console.error('Failed to initialize TodoService:', error);
+
       // Start with empty state if loading fails
       this.todos = [];
       this.nextId = 1;

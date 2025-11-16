@@ -21,8 +21,10 @@ export const SecureStorage = {
   },
 
   async clear(): Promise<void> {
-    await SecureStore.deleteItemAsync(SecureStore.KEYS.PIN_HASH);
-    await SecureStore.deleteItemAsync(SecureStore.KEYS.SESSION_LAST_AUTH);
-    await SecureStore.deleteItemAsync(SecureStore.KEYS.TODOS);
+    await Promise.all([
+      SecureStore.deleteItemAsync(SecureStorage.KEYS.PIN_HASH),
+      SecureStore.deleteItemAsync(SecureStorage.KEYS.SESSION_LAST_AUTH),
+      SecureStore.deleteItemAsync(SecureStorage.KEYS.TODOS),
+    ]);
   },
 };

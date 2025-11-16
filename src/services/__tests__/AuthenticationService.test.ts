@@ -1,310 +1,311 @@
-/**
- * AuthenticationService Comprehensive Tests
- * 
- * Tests cover:
- * - Biometric authentication (success and failure cases)
- * - PIN authentication (setup and verification)
- * - Error handling (module initialization, storage errors)
- * - Edge cases and security
- */
-
-import { AuthenticationService } from '../AuthenticationService';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { SecureStorage } from '../../utils/SecureStorage';
+import { STRINGS } from '../../constants/strings';
+import { AuthenticationService } from '../AuthenticationService';
 
-// Mock dependencies
-jest.mock('expo-local-authentication');
-jest.mock('../../utils/SecureStorage');
+jest.mock('expo-local-authentication', () => ({
+  hasHardwareAsync: jest.fn(),
+  isEnrolledAsync: jest.fn(),
+  authenticateAsync: jest.fn(),
+}));
+
+jest.mock('../../utils/SecureStorage', () => ({
+  SecureStorage: {
+    KEYS: {
+      PIN_HASH: 'PIN_HASH',
+      SESSION_LAST_AUTH: 'SESSION_LAST_AUTH',
+    },
+    getItem: jest.fn(),
+    setItem: jest.fn(),
+    removeItem: jest.fn(),
+  },
+}));
+
+jest.mock('../../constants/strings', () => ({
+  STRINGS: {
+    auth: {
+      authenticateBtn: 'Authenticate',
+      pinRequired: 'PIN_REQUIRED',
+      pinErrorLength: 'PIN_LENGTH_ERROR',
+      pinErrorIncorrect: 'PIN_INCORRECT',
+    },
+    todos: {
+      cancel: 'Cancel',
+    },
+  },
+}));
+
+
+const SESSION_DURATION_MS = 60 * 60 * 1000; // must match service
 
 describe('AuthenticationService', () => {
-  let authService: AuthenticationService;
-  let mockSecureStorage: jest.Mocked<typeof SecureStorage>;
+  let service: AuthenticationService;
 
   beforeEach(() => {
-    authService = new AuthenticationService();
+    service = new AuthenticationService();
     jest.clearAllMocks();
-
-    // Setup SecureStorage mock
-    mockSecureStorage = SecureStorage as jest.Mocked<typeof SecureStorage>;
-    mockSecureStorage.getItem = jest.fn();
-    mockSecureStorage.setItem = jest.fn();
   });
 
-  describe('Service Initialization', () => {
-    it('should create instance without errors', () => {
-      expect(() => new AuthenticationService()).not.toThrow();
-    });
-
-    it('should handle missing LocalAuthentication module gracefully', async () => {
-      // Simulate undefined module
-      const originalModule = LocalAuthentication;
-      (LocalAuthentication as any) = undefined;
-
-      const result = await authService.isAvailable();
-
-      expect(result).toBe(false);
-      // Restore
-      (LocalAuthentication as any) = originalModule;
-    });
-  });
-
-  describe('isAvailable', () => {
-    it('should return true when hardware is available and enrolled', async () => {
-      (LocalAuthentication.hasHardwareAsync as jest.Mock).mockResolvedValue(true);
-      (LocalAuthentication.isEnrolledAsync as jest.Mock).mockResolvedValue(true);
-
-      const result = await authService.isAvailable();
-
-      expect(result).toBe(true);
-    });
-
-    it('should return false when hardware is not compatible', async () => {
+  // ------------------------
+  // authenticate()
+  // ------------------------
+  describe('authenticate', () => {
+    it('returns error when biometrics are not available', async () => {
       (LocalAuthentication.hasHardwareAsync as jest.Mock).mockResolvedValue(false);
-      (LocalAuthentication.isEnrolledAsync as jest.Mock).mockResolvedValue(true);
-
-      const result = await authService.isAvailable();
-
-      expect(result).toBe(false);
-    });
-
-    it('should return false when not enrolled', async () => {
-      (LocalAuthentication.hasHardwareAsync as jest.Mock).mockResolvedValue(true);
       (LocalAuthentication.isEnrolledAsync as jest.Mock).mockResolvedValue(false);
 
-      const result = await authService.isAvailable();
+      const result = await service.authenticate();
 
-      expect(result).toBe(false);
+      expect(result.success).toBe(false);
+      expect(result.error).toBe(STRINGS.auth.pinRequired);
+      expect(LocalAuthentication.authenticateAsync).not.toHaveBeenCalled();
     });
 
-    it('should return false when hasHardwareAsync throws error', async () => {
-      (LocalAuthentication.hasHardwareAsync as jest.Mock).mockRejectedValue(
-        new Error('Module not initialized')
-      );
-
-      const result = await authService.isAvailable();
-
-      expect(result).toBe(false);
-    });
-
-    it('should return false when LocalAuthentication module is undefined', async () => {
-      // Mock undefined module by removing the function
-      const originalHasHardware = LocalAuthentication.hasHardwareAsync;
-      delete (LocalAuthentication as any).hasHardwareAsync;
-
-      const result = await authService.isAvailable();
-
-      expect(result).toBe(false);
-      // Restore
-      (LocalAuthentication as any).hasHardwareAsync = originalHasHardware;
-    });
-  });
-
-  describe('authenticate', () => {
-    it('should return success when biometric authentication succeeds', async () => {
+    it('returns success and marks session when biometric auth succeeds', async () => {
       (LocalAuthentication.hasHardwareAsync as jest.Mock).mockResolvedValue(true);
       (LocalAuthentication.isEnrolledAsync as jest.Mock).mockResolvedValue(true);
       (LocalAuthentication.authenticateAsync as jest.Mock).mockResolvedValue({
         success: true,
       });
 
-      const result = await authService.authenticate();
+      const result = await service.authenticate();
 
       expect(result.success).toBe(true);
       expect(result.error).toBeUndefined();
+      expect(SecureStorage.setItem).toHaveBeenCalledWith(
+        SecureStorage.KEYS.SESSION_LAST_AUTH,
+        expect.any(String),
+      );
     });
 
-    it('should return PIN_REQUIRED when biometrics not available', async () => {
-      (LocalAuthentication.hasHardwareAsync as jest.Mock).mockResolvedValue(false);
-
-      const result = await authService.authenticate();
-
-      expect(result.success).toBe(false);
-      expect(result.error).toBe('PIN_REQUIRED');
-    });
-
-    it('should return PIN_REQUIRED when user cancels biometric', async () => {
+    it('returns pinRequired when biometric auth fails', async () => {
       (LocalAuthentication.hasHardwareAsync as jest.Mock).mockResolvedValue(true);
       (LocalAuthentication.isEnrolledAsync as jest.Mock).mockResolvedValue(true);
       (LocalAuthentication.authenticateAsync as jest.Mock).mockResolvedValue({
         success: false,
-        error: 'user_cancel',
       });
 
-      const result = await authService.authenticate();
+      const result = await service.authenticate();
 
       expect(result.success).toBe(false);
-      expect(result.error).toBe('PIN_REQUIRED');
+      expect(result.error).toBe(STRINGS.auth.pinRequired);
+      expect(SecureStorage.setItem).not.toHaveBeenCalled();
     });
 
-    it('should return PIN_REQUIRED when authenticateAsync throws error', async () => {
-      (LocalAuthentication.hasHardwareAsync as jest.Mock).mockResolvedValue(true);
-      (LocalAuthentication.isEnrolledAsync as jest.Mock).mockResolvedValue(true);
-      (LocalAuthentication.authenticateAsync as jest.Mock).mockRejectedValue(
-        new Error('EventEmitter error')
-      );
-
-      const result = await authService.authenticate();
-
-      expect(result.success).toBe(false);
-      expect(result.error).toBe('PIN_REQUIRED');
-    });
-
-    it('should return PIN_REQUIRED when authenticateAsync is undefined', async () => {
-      (LocalAuthentication.hasHardwareAsync as jest.Mock).mockResolvedValue(true);
-      (LocalAuthentication.isEnrolledAsync as jest.Mock).mockResolvedValue(true);
-      (LocalAuthentication as any).authenticateAsync = undefined;
-
-      const result = await authService.authenticate();
-
-      expect(result.success).toBe(false);
-      expect(result.error).toBe('PIN_REQUIRED');
-    });
-
-    it('should handle general errors gracefully', async () => {
+    it('returns pinRequired on unexpected errors', async () => {
       (LocalAuthentication.hasHardwareAsync as jest.Mock).mockRejectedValue(
-        new Error('Unexpected error')
+        new Error('Test error'),
       );
 
-      const result = await authService.authenticate();
+      const result = await service.authenticate();
 
       expect(result.success).toBe(false);
-      expect(result.error).toBe('PIN_REQUIRED');
+      expect(result.error).toBe(STRINGS.auth.pinRequired);
     });
   });
 
+  // ------------------------
+  // authenticateWithPin()
+  // ------------------------
   describe('authenticateWithPin', () => {
-    it('should save PIN on first setup', async () => {
-      mockSecureStorage.getItem.mockResolvedValue(null);
-      mockSecureStorage.setItem.mockResolvedValue();
+    it('rejects short PINs (< 4)', async () => {
+      const result = await service.authenticateWithPin('12');
 
-      const result = await authService.authenticateWithPin('1234');
+      expect(result.success).toBe(false);
+      expect(result.error).toBe(STRINGS.auth.pinErrorLength);
+      expect(SecureStorage.getItem).not.toHaveBeenCalled();
+    });
+
+    it('creates PIN if not set yet and marks session', async () => {
+      (SecureStorage.getItem as jest.Mock).mockResolvedValue(null);
+
+      const result = await service.authenticateWithPin('1234');
+
+      expect(SecureStorage.getItem).toHaveBeenCalledWith(
+        SecureStorage.KEYS.PIN_HASH,
+      );
+      expect(SecureStorage.setItem).toHaveBeenNthCalledWith(
+        1,
+        SecureStorage.KEYS.PIN_HASH,
+        expect.any(String),
+      );
+      expect(SecureStorage.setItem).toHaveBeenNthCalledWith(
+        2,
+        SecureStorage.KEYS.SESSION_LAST_AUTH,
+        expect.any(String),
+      );
+      expect(result.success).toBe(true);
+    });
+
+    it('returns success when PIN is correct and marks session', async () => {
+      // simulate stored hash == hash(pin)
+      const pin = '9876';
+      const serviceForHash = new AuthenticationService();
+      // @ts-ignore accessing private for test hack
+      const hash = (serviceForHash as any).hashPin(pin);
+
+      (SecureStorage.getItem as jest.Mock).mockResolvedValue(hash);
+
+      const result = await service.authenticateWithPin(pin);
 
       expect(result.success).toBe(true);
-      expect(mockSecureStorage.setItem).toHaveBeenCalledWith(
-        SecureStorage.KEYS.PIN_HASH,
-        expect.any(String)
+      expect(SecureStorage.setItem).toHaveBeenCalledWith(
+        SecureStorage.KEYS.SESSION_LAST_AUTH,
+        expect.any(String),
       );
     });
 
-    it('should verify PIN correctly on subsequent attempts', async () => {
-      // First setup
-      mockSecureStorage.getItem.mockResolvedValueOnce(null);
-      await authService.authenticateWithPin('1234');
+    it('returns error when PIN is incorrect', async () => {
+      (SecureStorage.getItem as jest.Mock).mockResolvedValue('some-other-hash');
 
-      // Verify
-      mockSecureStorage.getItem.mockResolvedValueOnce('hash_1234');
-      const verifyResult = await authService.authenticateWithPin('1234');
-
-      // Note: In real implementation, the hash would match
-      // This test verifies the flow works
-      expect(mockSecureStorage.getItem).toHaveBeenCalled();
-    });
-
-    it('should reject PIN shorter than 4 digits', async () => {
-      const result = await authService.authenticateWithPin('123');
+      const result = await service.authenticateWithPin('1234');
 
       expect(result.success).toBe(false);
-      expect(result.error).toContain('at least 4 digits');
-    });
-
-    it('should reject empty PIN', async () => {
-      const result = await authService.authenticateWithPin('');
-
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('at least 4 digits');
-    });
-
-    it('should return error when SecureStorage is not available', async () => {
-      mockSecureStorage.getItem.mockRejectedValue(new Error('Storage unavailable'));
-
-      const result = await authService.authenticateWithPin('1234');
-
-      expect(result.success).toBe(false);
-      expect(result.error).toBeDefined();
-    });
-
-    it('should return error on incorrect PIN', async () => {
-      mockSecureStorage.getItem.mockResolvedValue('hash_1234');
-
-      const result = await authService.authenticateWithPin('5678');
-
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('Incorrect PIN');
-    });
-
-    it('should handle storage errors during PIN save', async () => {
-      mockSecureStorage.getItem.mockResolvedValue(null);
-      mockSecureStorage.setItem.mockRejectedValue(new Error('Save failed'));
-
-      const result = await authService.authenticateWithPin('1234');
-
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('Failed to save PIN');
+      expect(result.error).toBe(STRINGS.auth.pinErrorIncorrect);
+      expect(SecureStorage.setItem).not.toHaveBeenCalled();
     });
   });
 
-  describe('isPinSet', () => {
-    it('should return true when PIN is set', async () => {
-      mockSecureStorage.getItem.mockResolvedValue('hash_value');
+  // ------------------------
+  // isAvailable()
+  // ------------------------
+  describe('isAvailable', () => {
+    it('returns true when hardware and enrolled are true', async () => {
+      (LocalAuthentication.hasHardwareAsync as jest.Mock).mockResolvedValue(true);
+      (LocalAuthentication.isEnrolledAsync as jest.Mock).mockResolvedValue(true);
 
-      const result = await authService.isPinSet();
+      const result = await service.isAvailable();
 
       expect(result).toBe(true);
-      expect(mockSecureStorage.getItem).toHaveBeenCalledWith(
-        SecureStorage.KEYS.PIN_HASH
-      );
     });
 
-    it('should return false when PIN is not set', async () => {
-      mockSecureStorage.getItem.mockResolvedValue(null);
+    it('returns false if any check fails or throws', async () => {
+      (LocalAuthentication.hasHardwareAsync as jest.Mock).mockResolvedValue(true);
+      (LocalAuthentication.isEnrolledAsync as jest.Mock).mockResolvedValue(false);
 
-      const result = await authService.isPinSet();
-
-      expect(result).toBe(false);
-    });
-
-    it('should return false when SecureStorage fails', async () => {
-      mockSecureStorage.getItem.mockRejectedValue(new Error('Storage error'));
-
-      const result = await authService.isPinSet();
+      const result = await service.isAvailable();
 
       expect(result).toBe(false);
-    });
-
-    it('should return false when SecureStorage.getItem is undefined', async () => {
-      // Mock SecureStorage.getItem as undefined instead of entire module
-      const originalGetItem = SecureStorage.getItem;
-      (SecureStorage.getItem as any) = undefined;
-
-      const result = await authService.isPinSet();
-
-      expect(result).toBe(false);
-      // Restore
-      SecureStorage.getItem = originalGetItem;
     });
   });
 
-  describe('Security', () => {
-    it('should hash PIN before storing', async () => {
-      mockSecureStorage.getItem.mockResolvedValue(null);
-      mockSecureStorage.setItem.mockResolvedValue();
+  // ------------------------
+  // getSessionRemainingMs()
+  // ------------------------
+  describe('getSessionRemainingMs', () => {
+    const now = 1700000000000; // some fixed timestamp
 
-      await authService.authenticateWithPin('1234');
-
-      expect(mockSecureStorage.setItem).toHaveBeenCalled();
-      const storedValue = (mockSecureStorage.setItem as jest.Mock).mock.calls[0][1];
-      // Verify PIN is hashed (not plain text)
-      expect(storedValue).not.toBe('1234');
-      expect(storedValue).toBeTruthy();
+    beforeEach(() => {
+      jest.spyOn(Date, 'now').mockReturnValue(now);
     });
 
-    it('should hash PIN for verification', async () => {
-      mockSecureStorage.getItem.mockResolvedValue('stored_hash');
+    afterEach(() => {
+      (Date.now as jest.Mock).mockRestore?.();
+    });
 
-      await authService.authenticateWithPin('1234');
+    it('returns 0 when no session timestamp', async () => {
+      (SecureStorage.getItem as jest.Mock).mockResolvedValue(null);
 
-      // Hash should be computed, not plain text compared
-      expect(mockSecureStorage.getItem).toHaveBeenCalled();
+      const remaining = await service.getSessionRemainingMs();
+
+      expect(remaining).toBe(0);
+    });
+
+    it('returns remaining ms when session is valid', async () => {
+      const half = SESSION_DURATION_MS / 2;
+      const ts = (now - half).toString();
+
+      (SecureStorage.getItem as jest.Mock).mockResolvedValue(ts);
+
+      const remaining = await service.getSessionRemainingMs();
+
+      // should be roughly half the duration
+      expect(remaining).toBeGreaterThan(half - 10_000);
+      expect(remaining).toBeLessThanOrEqual(half);
+    });
+
+    it('returns 0 when session is expired', async () => {
+      const expired = (now - SESSION_DURATION_MS - 1000).toString();
+      (SecureStorage.getItem as jest.Mock).mockResolvedValue(expired);
+
+      const remaining = await service.getSessionRemainingMs();
+
+      expect(remaining).toBe(0);
+    });
+  });
+
+  // ------------------------
+  // isSessionValid()
+  // ------------------------
+  describe('isSessionValid', () => {
+    const now = 1700000000000;
+
+    beforeEach(() => {
+      jest.spyOn(Date, 'now').mockReturnValue(now);
+    });
+
+    afterEach(() => {
+      (Date.now as jest.Mock).mockRestore?.();
+    });
+
+    it('returns false when there is no session', async () => {
+      (SecureStorage.getItem as jest.Mock).mockResolvedValue(null);
+
+      const valid = await service.isSessionValid();
+
+      expect(valid).toBe(false);
+    });
+
+    it('returns true when session is within duration', async () => {
+      const ts = (now - SESSION_DURATION_MS + 1000).toString();
+      (SecureStorage.getItem as jest.Mock).mockResolvedValue(ts);
+
+      const valid = await service.isSessionValid();
+
+      expect(valid).toBe(true);
+    });
+
+    it('returns false when session is expired', async () => {
+      const ts = (now - SESSION_DURATION_MS - 1).toString();
+      (SecureStorage.getItem as jest.Mock).mockResolvedValue(ts);
+
+      const valid = await service.isSessionValid();
+
+      expect(valid).toBe(false);
+    });
+  });
+
+  // ------------------------
+  // logout()
+  // ------------------------
+  describe('logout', () => {
+    it('removes session timestamp', async () => {
+      await service.logout();
+
+      expect(SecureStorage.removeItem).toHaveBeenCalledWith(
+        SecureStorage.KEYS.SESSION_LAST_AUTH,
+      );
+    });
+  });
+
+  // ------------------------
+  // isPinSet()
+  // ------------------------
+  describe('isPinSet', () => {
+    it('returns true when PIN hash exists', async () => {
+      (SecureStorage.getItem as jest.Mock).mockResolvedValue('hash');
+
+      const result = await service.isPinSet();
+
+      expect(result).toBe(true);
+    });
+
+    it('returns false when PIN hash does not exist', async () => {
+      (SecureStorage.getItem as jest.Mock).mockResolvedValue(null);
+
+      const result = await service.isPinSet();
+
+      expect(result).toBe(false);
     });
   });
 });

@@ -1,6 +1,6 @@
 /**
  * TodoService Comprehensive Tests
- * 
+ *
  * Tests cover:
  * - CRUD operations
  * - Encrypted storage integration
@@ -12,8 +12,17 @@ import { TodoService } from '../TodoService';
 import { SecureStorage } from '../../utils/SecureStorage';
 import { Todo } from '../../types';
 
-// Mock SecureStorage
-jest.mock('../../utils/SecureStorage');
+// Explicit mock for SecureStorage
+jest.mock('../../utils/SecureStorage', () => ({
+  SecureStorage: {
+    KEYS: {
+      TODOS: 'TODOS', // value doesn't matter for tests
+    },
+    getItem: jest.fn(),
+    setItem: jest.fn(),
+    removeItem: jest.fn(),
+  },
+}));
 
 describe('TodoService', () => {
   let todoService: TodoService;
@@ -21,17 +30,14 @@ describe('TodoService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    todoService = new TodoService();
-
     mockSecureStorage = SecureStorage as jest.Mocked<typeof SecureStorage>;
-    mockSecureStorage.getItem = jest.fn();
-    mockSecureStorage.setItem = jest.fn();
   });
 
   describe('Initialization', () => {
     it('should initialize with empty state when no stored data', async () => {
       mockSecureStorage.getItem.mockResolvedValue(null);
 
+      todoService = new TodoService();
       const todos = await todoService.getAllTodos();
 
       expect(todos).toEqual([]);
@@ -51,8 +57,10 @@ describe('TodoService', () => {
         nextId: 2,
       };
 
-      mockSecureStorage.getItem.mockResolvedValue(storedData);
+      // IMPORTANT: stringify, because real SecureStorage returns string
+      mockSecureStorage.getItem.mockResolvedValue(JSON.stringify(storedData));
 
+      todoService = new TodoService();
       const todos = await todoService.getAllTodos();
 
       expect(todos).toHaveLength(1);
@@ -62,6 +70,7 @@ describe('TodoService', () => {
     it('should handle initialization errors gracefully', async () => {
       mockSecureStorage.getItem.mockRejectedValue(new Error('Storage error'));
 
+      todoService = new TodoService();
       const todos = await todoService.getAllTodos();
 
       // Should return empty array on error
@@ -73,6 +82,8 @@ describe('TodoService', () => {
     it('should add todo and save to storage', async () => {
       mockSecureStorage.getItem.mockResolvedValue(null);
       mockSecureStorage.setItem.mockResolvedValue();
+
+      todoService = new TodoService();
 
       const newTodo = await todoService.addTodo({
         title: 'New Todo',
@@ -90,12 +101,14 @@ describe('TodoService', () => {
       mockSecureStorage.getItem.mockResolvedValue(null);
       mockSecureStorage.setItem.mockRejectedValue(new Error('Save failed'));
 
+      todoService = new TodoService();
+
       await expect(
         todoService.addTodo({
           title: 'New Todo',
           completed: false,
-        })
-      ).rejects.toThrow();
+        }),
+      ).rejects.toThrow('Save failed');
     });
   });
 
@@ -109,17 +122,21 @@ describe('TodoService', () => {
         updatedAt: new Date(),
       };
 
-      mockSecureStorage.getItem.mockResolvedValue({
-        todos: [
-          {
-            ...existingTodo,
-            createdAt: existingTodo.createdAt.toISOString(),
-            updatedAt: existingTodo.updatedAt.toISOString(),
-          },
-        ],
-        nextId: 1,
-      });
+      mockSecureStorage.getItem.mockResolvedValue(
+        JSON.stringify({
+          todos: [
+            {
+              ...existingTodo,
+              createdAt: existingTodo.createdAt.toISOString(),
+              updatedAt: existingTodo.updatedAt.toISOString(),
+            },
+          ],
+          nextId: 1,
+        }),
+      );
       mockSecureStorage.setItem.mockResolvedValue();
+
+      todoService = new TodoService();
 
       const updated = await todoService.updateTodo('test-id', {
         title: 'Updated',
@@ -128,17 +145,21 @@ describe('TodoService', () => {
 
       expect(updated.title).toBe('Updated');
       expect(updated.completed).toBe(true);
-      // Updated timestamp should be greater or equal (if same millisecond)
       expect(updated.updatedAt.getTime()).toBeGreaterThanOrEqual(
-        existingTodo.updatedAt.getTime()
+        existingTodo.updatedAt.getTime(),
       );
+      expect(mockSecureStorage.setItem).toHaveBeenCalled();
     });
 
     it('should throw error when todo not found', async () => {
-      mockSecureStorage.getItem.mockResolvedValue({ todos: [], nextId: 1 });
+      mockSecureStorage.getItem.mockResolvedValue(
+        JSON.stringify({ todos: [], nextId: 1 }),
+      );
+
+      todoService = new TodoService();
 
       await expect(
-        todoService.updateTodo('non-existent', { title: 'Updated' })
+        todoService.updateTodo('non-existent', { title: 'Updated' }),
       ).rejects.toThrow('not found');
     });
   });
@@ -153,54 +174,66 @@ describe('TodoService', () => {
         updatedAt: new Date(),
       };
 
-      mockSecureStorage.getItem.mockResolvedValue({
-        todos: [
-          {
-            ...todo,
-            createdAt: todo.createdAt.toISOString(),
-            updatedAt: todo.updatedAt.toISOString(),
-          },
-        ],
-        nextId: 1,
-      });
+      mockSecureStorage.getItem.mockResolvedValue(
+        JSON.stringify({
+          todos: [
+            {
+              ...todo,
+              createdAt: todo.createdAt.toISOString(),
+              updatedAt: todo.updatedAt.toISOString(),
+            },
+          ],
+          nextId: 1,
+        }),
+      );
       mockSecureStorage.setItem.mockResolvedValue();
+
+      todoService = new TodoService();
 
       await todoService.deleteTodo('test-id');
 
       const todos = await todoService.getAllTodos();
       expect(todos.find((t) => t.id === 'test-id')).toBeUndefined();
+      expect(mockSecureStorage.setItem).toHaveBeenCalled();
     });
 
     it('should throw error when todo not found', async () => {
-      mockSecureStorage.getItem.mockResolvedValue({ todos: [], nextId: 1 });
+      mockSecureStorage.getItem.mockResolvedValue(
+        JSON.stringify({ todos: [], nextId: 1 }),
+      );
+
+      todoService = new TodoService();
 
       await expect(todoService.deleteTodo('non-existent')).rejects.toThrow(
-        'not found'
+        'not found',
       );
     });
   });
 
   describe('getAllTodos', () => {
     it('should return copy of todos to prevent mutation', async () => {
-      mockSecureStorage.getItem.mockResolvedValue({
-        todos: [
-          {
-            id: '1',
-            title: 'Test',
-            completed: false,
-            createdAt: '2024-01-01T00:00:00.000Z',
-            updatedAt: '2024-01-01T00:00:00.000Z',
-          },
-        ],
-        nextId: 1,
-      });
+      mockSecureStorage.getItem.mockResolvedValue(
+        JSON.stringify({
+          todos: [
+            {
+              id: '1',
+              title: 'Test',
+              completed: false,
+              createdAt: '2024-01-01T00:00:00.000Z',
+              updatedAt: '2024-01-01T00:00:00.000Z',
+            },
+          ],
+          nextId: 1,
+        }),
+      );
+
+      todoService = new TodoService();
 
       const todos1 = await todoService.getAllTodos();
       const todos2 = await todoService.getAllTodos();
 
       expect(todos1).not.toBe(todos2); // Different references
-      expect(todos1).toEqual(todos2); // Same content
+      expect(todos1).toEqual(todos2);  // Same content
     });
   });
 });
-
