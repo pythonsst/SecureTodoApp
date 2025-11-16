@@ -30,6 +30,31 @@ export const STRINGS = {
     delete: 'Delete',
 
   },
+  pin: {
+    createTitle: 'Create PIN',
+    enterTitle: 'Enter PIN',
+    createSubtitle: 'Choose a 4-digit PIN to secure your todos',
+    enterSubtitle: 'Enter your PIN to continue',
+    cancel: 'Cancel',
+  },
+
+  todoForm: {
+    newTitle: 'New Todo',
+    editTitle: 'Edit Todo',
+    titleLabel: 'Title *',
+    descriptionLabel: 'Description',
+    titlePlaceholder: 'Enter todo title',
+    descriptionPlaceholder: 'Optional description',
+    errorTitleRequired: 'Title is required',
+    errorSaveFailed: 'Failed to save todo',
+    cancel: 'Cancel',
+    update: 'Update',
+    create: 'Create',
+  },
+
+  todoItem: {
+    doneLabel: 'Done',
+  },
 
   errors: {
     generic: 'An error occurred. Please try again.',

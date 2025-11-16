@@ -1,11 +1,7 @@
-/**
- * TodoItem Component
- * Refined card layout and typography.
- */
-
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Switch } from 'react-native';
 import { Todo } from '../types';
+import { STRINGS } from '../constants/strings';
 
 interface TodoItemProps {
   todo: Todo;
@@ -30,7 +26,9 @@ export const TodoItem: React.FC<TodoItemProps> = ({
             </Text>
             {todo.completed && (
               <View style={styles.completedBadge}>
-                <Text style={styles.completedBadgeText}>Done</Text>
+                <Text style={styles.completedBadgeText}>
+                  {STRINGS.todoItem.doneLabel}
+                </Text>
               </View>
             )}
           </View>
@@ -69,7 +67,7 @@ export const TodoItem: React.FC<TodoItemProps> = ({
               <Text style={styles.actionButtonText}>✏️</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.actionButton]}
+              style={styles.actionButton}
               onPress={() => onDelete(todo.id)}
               activeOpacity={0.8}
             >
@@ -174,10 +172,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#E5E7EB',
-  },
-  deleteButton: {
-    backgroundColor: '#FEF2F2',
-    borderColor: '#FECACA',
   },
   actionButtonText: {
     fontSize: 16,

@@ -1,9 +1,3 @@
-/**
- * TodoForm Component
- *
- * Modal form for creating and editing todos.
- */
-
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -17,6 +11,7 @@ import {
 } from 'react-native';
 import { Todo } from '../types';
 import { Button } from './Button';
+import { STRINGS } from '../constants/strings';
 
 interface TodoFormProps {
   visible: boolean;
@@ -31,10 +26,10 @@ export const TodoForm: React.FC<TodoFormProps> = ({
   onSave,
   onCancel,
 }) => {
-  const [title, setTitle] = useState<string>('');
-  const [description, setDescription] = useState<string>('');
-  const [completed, setCompleted] = useState<boolean>(false);
-  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [completed, setCompleted] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -54,7 +49,7 @@ export const TodoForm: React.FC<TodoFormProps> = ({
 
   const handleSave = async () => {
     if (!title.trim()) {
-      setError('Title is required');
+      setError(STRINGS.todoForm.errorTitleRequired);
       return;
     }
 
@@ -68,7 +63,9 @@ export const TodoForm: React.FC<TodoFormProps> = ({
         completed,
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save todo');
+      setError(
+        err instanceof Error ? err.message : STRINGS.todoForm.errorSaveFailed,
+      );
     } finally {
       setIsSaving(false);
     }
@@ -96,7 +93,9 @@ export const TodoForm: React.FC<TodoFormProps> = ({
         <View style={styles.sheet}>
           <View style={styles.handle} />
           <ScrollView showsVerticalScrollIndicator={false}>
-            <Text style={styles.title}>{todo ? 'Edit Todo' : 'New Todo'}</Text>
+            <Text style={styles.title}>
+              {todo ? STRINGS.todoForm.editTitle : STRINGS.todoForm.newTitle}
+            </Text>
 
             {error && (
               <View style={styles.errorContainer}>
@@ -105,24 +104,24 @@ export const TodoForm: React.FC<TodoFormProps> = ({
             )}
 
             <View style={styles.inputContainer}>
-              <Text style={styles.label}>Title *</Text>
+              <Text style={styles.label}>{STRINGS.todoForm.titleLabel}</Text>
               <TextInput
                 style={styles.input}
                 value={title}
                 onChangeText={setTitle}
-                placeholder="Enter todo title"
+                placeholder={STRINGS.todoForm.titlePlaceholder}
                 placeholderTextColor="#9CA3AF"
                 autoFocus={!todo}
               />
             </View>
 
             <View style={styles.inputContainer}>
-              <Text style={styles.label}>Description</Text>
+              <Text style={styles.label}>{STRINGS.todoForm.descriptionLabel}</Text>
               <TextInput
                 style={[styles.input, styles.textArea]}
                 value={description}
                 onChangeText={setDescription}
-                placeholder="Optional description"
+                placeholder={STRINGS.todoForm.descriptionPlaceholder}
                 placeholderTextColor="#9CA3AF"
                 multiline
                 numberOfLines={4}
@@ -132,14 +131,14 @@ export const TodoForm: React.FC<TodoFormProps> = ({
 
             <View style={styles.actions}>
               <Button
-                title="Cancel"
+                title={STRINGS.todoForm.cancel}
                 onPress={handleCancel}
                 variant="secondary"
                 style={styles.actionButton}
                 disabled={isSaving}
               />
               <Button
-                title={todo ? 'Update' : 'Create'}
+                title={todo ? STRINGS.todoForm.update : STRINGS.todoForm.create}
                 onPress={handleSave}
                 loading={isSaving}
                 style={styles.actionButton}

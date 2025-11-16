@@ -1,8 +1,3 @@
-/**
- * Button Component
- * Rounded, modern primary/secondary button.
- */
-
 import React from 'react';
 import {
   TouchableOpacity,

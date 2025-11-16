@@ -1,10 +1,3 @@
-/**
- * PIN Input Component
- * 
- * Secure PIN input component for authentication fallback.
- * Functional component following React best practices.
- */
-
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
@@ -14,28 +7,16 @@ import {
   TouchableOpacity,
   Keyboard,
 } from 'react-native';
+import { STRINGS } from '../constants/strings';
 
-/**
- * Props for PinInput component
- */
 interface PinInputProps {
   length?: number;
   onComplete: (pin: string) => void;
   error?: string | null;
-  isSettingUp?: boolean; // True if setting up PIN for first time
+  isSettingUp?: boolean;
   onCancel?: () => void;
 }
 
-/**
- * PinInput component
- * Secure PIN entry with masked input
- * 
- * @param length - Number of PIN digits (default: 4)
- * @param onComplete - Callback when PIN is complete
- * @param error - Error message to display
- * @param isSettingUp - Whether this is initial PIN setup
- * @param onCancel - Optional cancel handler
- */
 export const PinInput: React.FC<PinInputProps> = ({
   length = 4,
   onComplete,
@@ -43,86 +24,58 @@ export const PinInput: React.FC<PinInputProps> = ({
   isSettingUp = false,
   onCancel,
 }) => {
-  const [pin, setPin] = useState<string>('');
+  const [pin, setPin] = useState('');
   const inputRef = useRef<TextInput>(null);
 
   useEffect(() => {
-    // Focus input when component mounts
     const timer = setTimeout(() => {
       inputRef.current?.focus();
     }, 100);
     return () => clearTimeout(timer);
   }, []);
 
-  // Clear PIN when error occurs (for retry)
   useEffect(() => {
     if (error) {
       setPin('');
-      // Refocus after clearing
       setTimeout(() => {
         inputRef.current?.focus();
       }, 100);
     }
   }, [error]);
 
-  /**
-   * Handles PIN input change
-   */
   const handlePinChange = (text: string) => {
-    // Only allow digits
     const digitsOnly = text.replace(/[^0-9]/g, '');
-    
     if (digitsOnly.length <= length) {
       setPin(digitsOnly);
-      
-      // Auto-submit when PIN is complete
       if (digitsOnly.length === length) {
         Keyboard.dismiss();
-        setTimeout(() => {
-          onComplete(digitsOnly);
-        }, 100);
+        setTimeout(() => onComplete(digitsOnly), 100);
       }
     }
   };
 
-  /**
-   * Handles backspace
-   */
-  const handleBackspace = () => {
-    if (pin.length > 0) {
-      setPin(pin.slice(0, -1));
-    }
-  };
-
-  /**
-   * Renders PIN dots
-   */
-  const renderPinDots = () => {
-    return (
-      <View style={styles.dotsContainer}>
-        {Array.from({ length }).map((_, index) => (
-          <View
-            key={index}
-            style={[
-              styles.dot,
-              index < pin.length && styles.dotFilled,
-              error && styles.dotError,
-            ]}
-          />
-        ))}
-      </View>
-    );
-  };
+  const renderPinDots = () => (
+    <View style={styles.dotsContainer}>
+      {Array.from({ length }).map((_, index) => (
+        <View
+          key={index}
+          style={[
+            styles.dot,
+            index < pin.length && styles.dotFilled,
+            error && styles.dotError,
+          ]}
+        />
+      ))}
+    </View>
+  );
 
   return (
     <View style={styles.container}>
       <Text style={styles.title}>
-        {isSettingUp ? 'Create PIN' : 'Enter PIN'}
+        {isSettingUp ? STRINGS.pin.createTitle : STRINGS.pin.enterTitle}
       </Text>
       <Text style={styles.subtitle}>
-        {isSettingUp
-          ? 'Choose a 4-digit PIN to secure your todos'
-          : 'Enter your PIN to continue'}
+        {isSettingUp ? STRINGS.pin.createSubtitle : STRINGS.pin.enterSubtitle}
       </Text>
 
       {error && (
@@ -132,9 +85,7 @@ export const PinInput: React.FC<PinInputProps> = ({
         </View>
       )}
 
-      <View style={styles.dotsWrapper}>
-        {renderPinDots()}
-      </View>
+      <View style={styles.dotsWrapper}>{renderPinDots()}</View>
 
       <TextInput
         ref={inputRef}
@@ -149,12 +100,12 @@ export const PinInput: React.FC<PinInputProps> = ({
       />
 
       {onCancel && (
-        <TouchableOpacity 
-          style={styles.cancelButton} 
+        <TouchableOpacity
+          style={styles.cancelButton}
           onPress={onCancel}
           activeOpacity={0.7}
         >
-          <Text style={styles.cancelButtonText}>Cancel</Text>
+          <Text style={styles.cancelButtonText}>{STRINGS.pin.cancel}</Text>
         </TouchableOpacity>
       )}
     </View>
@@ -248,4 +199,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-
