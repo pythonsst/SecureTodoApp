@@ -1,88 +1,113 @@
-/**
- * Todo List Screen
- * Polished, cross-platform UI (iOS + Android)
- */
-
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   SafeAreaView,
   View,
-  Text,
   StyleSheet,
   FlatList,
   RefreshControl,
   Alert,
-  TouchableOpacity,
   Platform,
   StatusBar,
 } from 'react-native';
-import { useTodos } from '../contexts/TodoContext';
-import { useAuth } from '../contexts/AuthContext';
+
 import { Todo } from '../types';
 import { TodoItem } from '../components/TodoItem';
 import { TodoForm } from '../components/TodoForm';
 import { Button } from '../components/Button';
+import { PageHeader } from '../components/PageHeader';
+import { EmptyState } from '../components/EmptyState';
+import { useAppDispatch, useAppSelector } from '../store/hooks';
+import {
+  loadTodosThunk,
+  addTodoThunk,
+  updateTodoThunk,
+  deleteTodoThunk,
+} from '../store/todos/todoThunks';
+import {
+  selectTodos,
+  selectTodoError,
+  selectTodoLoading,
+} from '../store/todos/todoSelectors';
+import { logoutThunk } from '../store/auth/authThunks';
+import { STRINGS } from '../constants/strings';
+import { ErrorBanner } from '../components/ErrorBanner';
 
 const COLORS = {
   bg: '#F4F6FB',
-  white: '#FFFFFF',
-  primary: '#6366F1',
-  primarySoft: '#EEF2FF',
-  text: '#111827',
-  textMuted: '#6B7280',
-  border: '#E5E7EB',
   errorBg: '#FEF2F2',
   errorBorder: '#FECACA',
-  errorText: '#B91C1C',
+  primary: '#6366F1',
 };
 
 export const TodoListScreen: React.FC = () => {
-  const { todos, isLoading, error, addTodo, updateTodo, deleteTodo, refreshTodos } =
-    useTodos();
-  const { logout } = useAuth();
+  const dispatch = useAppDispatch();
+
+  const todos = useAppSelector(selectTodos);
+  const isLoading = useAppSelector(selectTodoLoading);
+  const error = useAppSelector(selectTodoError);
 
   const [isFormVisible, setIsFormVisible] = useState(false);
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
 
+  useEffect(() => {
+    dispatch(loadTodosThunk());
+  }, [dispatch]);
+
   const handleAddTodo = async (
-    todo: Omit<Todo, 'id' | 'createdAt' | 'updatedAt'>
+    todo: Omit<Todo, 'id' | 'createdAt' | 'updatedAt'>,
   ) => {
-    await addTodo(todo);
-    setIsFormVisible(false);
+    try {
+      await dispatch(addTodoThunk(todo)).unwrap();
+      setIsFormVisible(false);
+    } catch {
+      Alert.alert('Error', STRINGS.todos.errorAdd);
+    }
   };
 
   const handleUpdateTodo = async (
-    todo: Omit<Todo, 'id' | 'createdAt' | 'updatedAt'>
+    todo: Omit<Todo, 'id' | 'createdAt' | 'updatedAt'>,
   ) => {
     if (!editingTodo) return;
-    await updateTodo(editingTodo.id, todo);
-    setEditingTodo(null);
-    setIsFormVisible(false);
+    try {
+      await dispatch(
+        updateTodoThunk({ id: editingTodo.id, updates: todo }),
+      ).unwrap();
+      setEditingTodo(null);
+      setIsFormVisible(false);
+    } catch {
+      Alert.alert('Error', STRINGS.todos.errorUpdate);
+    }
   };
 
   const handleToggleTodo = async (id: string, completed: boolean) => {
     try {
-      await updateTodo(id, { completed });
+      await dispatch(
+        updateTodoThunk({ id, updates: { completed } }),
+      ).unwrap();
     } catch {
-      Alert.alert('Error', 'Failed to update todo');
+      Alert.alert('Error', STRINGS.todos.errorUpdate);
     }
   };
 
   const handleDeleteTodo = (id: string) => {
-    Alert.alert('Delete Todo', 'Are you sure you want to delete this todo?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await deleteTodo(id);
-          } catch {
-            Alert.alert('Error', 'Failed to delete todo');
-          }
+    Alert.alert(
+      STRINGS.todos.deleteConfirmTitle,
+      STRINGS.todos.deleteConfirmMessage,
+      [
+        { text: STRINGS.todos.cancel, style: 'cancel' },
+        {
+          text: STRINGS.todos.delete,
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await dispatch(deleteTodoThunk(id)).unwrap();
+            } catch {
+              Alert.alert('Error', STRINGS.todos.errorDelete);
+            }
+          },
         },
-      },
-    ]);
+      ],
+    );
   };
 
   const handleEditTodo = (todo: Todo) => {
@@ -100,17 +125,13 @@ export const TodoListScreen: React.FC = () => {
     setIsFormVisible(false);
   };
 
-  const renderEmptyState = () => (
-    <View style={styles.emptyContainer}>
-      <View style={styles.emptyIconCircle}>
-        <Text style={styles.emptyIcon}>📝</Text>
-      </View>
-      <Text style={styles.emptyText}>No tasks yet</Text>
-      <Text style={styles.emptySubtext}>
-        Tap “Add Todo” below to create your first task.
-      </Text>
-    </View>
-  );
+  const handleRefresh = () => {
+    dispatch(loadTodosThunk());
+  };
+
+  const handleLogout = () => {
+    dispatch(logoutThunk());
+  };
 
   const renderTodoItem = ({ item }: { item: Todo }) => (
     <TodoItem
@@ -121,36 +142,41 @@ export const TodoListScreen: React.FC = () => {
     />
   );
 
+  const renderEmptyState = () => (
+    <EmptyState
+      title={STRINGS.todos.emptyTitle}
+      message={STRINGS.todos.emptySubtitle}
+      emoji="📝"
+    />
+  );
+
   const tasksCount =
-    todos.length === 0 ? 'No tasks yet' : `${todos.length} task${todos.length > 1 ? 's' : ''}`;
+    todos.length === 0
+      ? STRINGS.todos.emptyTitle
+      : `${todos.length} task${todos.length > 1 ? 's' : ''}`;
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerContent}>
-            <Text style={styles.headerTitle}>My Todos</Text>
-            <Text style={styles.todoCount}>{tasksCount}</Text>
-          </View>
-          <TouchableOpacity
-            style={styles.logoutButton}
-            onPress={logout}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.logoutText}>Logout</Text>
-          </TouchableOpacity>
-        </View>
+        <PageHeader
+          title={STRINGS.todos.title}
+          subtitle={tasksCount}
+          rightLabel={STRINGS.todos.logout}
+          onRightPress={handleLogout}
+        />
 
-        {/* Error banner */}
         {error && (
-          <View style={styles.errorContainer}>
-            <Text style={styles.errorIcon}>⚠️</Text>
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
+          <ErrorBanner
+            message={error}
+            style={{
+              marginHorizontal: 16,
+              marginTop: 12,
+              backgroundColor: COLORS.errorBg,
+              borderColor: COLORS.errorBorder,
+            }}
+          />
         )}
 
-        {/* List */}
         <FlatList
           data={todos}
           renderItem={renderTodoItem}
@@ -163,7 +189,7 @@ export const TodoListScreen: React.FC = () => {
           refreshControl={
             <RefreshControl
               refreshing={isLoading}
-              onRefresh={refreshTodos}
+              onRefresh={handleRefresh}
               tintColor={COLORS.primary}
               colors={[COLORS.primary]}
             />
@@ -171,12 +197,10 @@ export const TodoListScreen: React.FC = () => {
           showsVerticalScrollIndicator={false}
         />
 
-        {/* Footer */}
         <View style={styles.footer}>
-          <Button title="+ Add Todo" onPress={handleOpenForm} />
+          <Button title={STRINGS.todos.add} onPress={handleOpenForm} />
         </View>
 
-        {/* Modal form */}
         <TodoForm
           visible={isFormVisible}
           todo={editingTodo}
@@ -197,71 +221,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 14,
-    backgroundColor: COLORS.white,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  headerContent: {
-    flex: 1,
-  },
-  headerTitle: {
-    fontSize: 26,
-    fontWeight: '800',
-    color: COLORS.text,
-    letterSpacing: -0.4,
-  },
-  todoCount: {
-    marginTop: 2,
-    fontSize: 14,
-    color: COLORS.textMuted,
-    fontWeight: '500',
-  },
-  logoutButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 999,
-    backgroundColor: COLORS.primarySoft,
-    borderWidth: 1,
-    borderColor: COLORS.primarySoft,
-  },
-  logoutText: {
-    color: COLORS.primary,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  errorContainer: {
-    backgroundColor: COLORS.errorBg,
-    padding: 12,
-    marginHorizontal: 16,
-    marginTop: 12,
-    borderRadius: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.errorBorder,
-  },
-  errorIcon: {
-    fontSize: 18,
-    marginRight: 8,
-  },
-  errorText: {
-    color: COLORS.errorText,
-    fontSize: 14,
-    flex: 1,
-    fontWeight: '500',
-  },
   listContent: {
     paddingHorizontal: 16,
     paddingTop: 16,
@@ -272,34 +231,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  emptyContainer: {
-    alignItems: 'center',
-    paddingHorizontal: 32,
-  },
-  emptyIconCircle: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    backgroundColor: COLORS.primarySoft,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 18,
-  },
-  emptyIcon: {
-    fontSize: 40,
-  },
-  emptyText: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: COLORS.text,
-    marginBottom: 6,
-  },
-  emptySubtext: {
-    fontSize: 14,
-    color: COLORS.textMuted,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
   footer: {
     position: 'absolute',
     left: 0,
@@ -307,9 +238,9 @@ const styles = StyleSheet.create({
     bottom: 0,
     paddingHorizontal: 16,
     paddingBottom: 16,
-  
     backgroundColor: 'transparent',
-  
     elevation: 4,
   },
 });
+
+export default TodoListScreen;
