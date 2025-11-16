@@ -1,45 +1,29 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- */
+import React from 'react';
+import { StatusBar, useColorScheme } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { NewAppScreen } from '@react-native/new-app-screen';
-import { StatusBar, StyleSheet, useColorScheme, View } from 'react-native';
-import {
-  SafeAreaProvider,
-  useSafeAreaInsets,
-} from 'react-native-safe-area-context';
+import AuthProvider from './src/contexts/AuthContext';
+import { TodoProvider } from './src/contexts/TodoContext';
+import { useAuth } from './src/contexts/AuthContext';
+import { AuthenticationScreen } from './src/screens/AuthenticationScreen';
+import { TodoListScreen } from './src/screens/TodoListScreen';
 
-function App() {
+function AppContent() {
+  const { isAuthenticated } = useAuth();
+  return isAuthenticated ? <TodoListScreen /> : <AuthenticationScreen />;
+}
+
+export default function App() {
   const isDarkMode = useColorScheme() === 'dark';
 
   return (
     <SafeAreaProvider>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-      <AppContent />
+      <AuthProvider>
+        <TodoProvider>
+          <AppContent />
+        </TodoProvider>
+      </AuthProvider>
     </SafeAreaProvider>
   );
 }
-
-function AppContent() {
-  const safeAreaInsets = useSafeAreaInsets();
-
-  return (
-    <View style={styles.container}>
-      <NewAppScreen
-        templateFileName="App.tsx"
-        safeAreaInsets={safeAreaInsets}
-      />
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-});
-
-export default App;

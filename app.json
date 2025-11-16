@@ -1,4 +1,7 @@
 {
   "name": "SecureTodoApp81",
-  "displayName": "SecureTodoApp81"
+  "displayName": "SecureTodoApp81",
+  "plugins": [
+    "expo-secure-store"
+  ]
 }
