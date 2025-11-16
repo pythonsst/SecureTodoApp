@@ -4,6 +4,8 @@
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
+	<key>NSFaceIDUsageDescription</key>
+    <string>This app uses Face ID to authenticate access to your todos.</string>
 	<key>CFBundleDisplayName</key>
 	<string>SecureTodoApp81</string>
 	<key>CFBundleExecutable</key>

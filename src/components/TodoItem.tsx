@@ -6,7 +6,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Switch } from 'react-native';
 import { Todo } from '../types';
-import { Feather } from '@expo/vector-icons'; // add this at top
 
 interface TodoItemProps {
   todo: Todo;
@@ -74,8 +73,7 @@ export const TodoItem: React.FC<TodoItemProps> = ({
               onPress={() => onDelete(todo.id)}
               activeOpacity={0.8}
             >
-              {/* <Text style={styles.actionButtonText}>🗑</Text> */}
-              <Feather name="x-circle" size={18} color="#0d0303ff" />
+              <Text style={styles.actionButtonText}>🗑</Text>
             </TouchableOpacity>
           </View>
         </View>

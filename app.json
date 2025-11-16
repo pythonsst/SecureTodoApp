@@ -1,7 +1,15 @@
 {
   "name": "SecureTodoApp81",
   "displayName": "SecureTodoApp81",
-  "plugins": [
-    "expo-secure-store"
-  ]
+  "expo": {
+    "plugins": [
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "This app uses Face ID to securely authenticate your todos."
+        }
+      ],
+      "expo-secure-store"
+    ]
+  }
 }
